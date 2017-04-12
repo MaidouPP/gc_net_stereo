@@ -10,8 +10,8 @@ CONV_WEIGHT_DECAY = 0.00005
 CONV_WEIGHT_STDDEV = 0.1
 GC_VARIABLES = 'gc_variables'
 UPDATE_OPS_COLLECTION = 'gc_update_ops'  # training ops
-HEIGHT = 388
-WIDTH = 1240
+HEIGHT = 256
+WIDTH = 512
 DISPARITY = 192
 
 # wrapper for 2d convolution op
@@ -46,6 +46,27 @@ def conv_3d(x, c):
                           weight_decay=CONV_WEIGHT_DECAY)
   bias = tf.get_variable('bias', [filters_out], 'float', tf.constant_initializer(0.05, dtype='float'))
   x = tf.nn.conv3d(x, weights, [1, stride, stride, stride, 1], padding='SAME')
+  return tf.nn.bias_add(x, bias)
+
+def deconv_3d(x, c):
+  ksize = c['ksize']
+  stride = c['stride']
+  filters_out = c['conv_filters_out']
+  filters_in = x.get_shape()[-1]
+  d = x.get_shape()[0] * stride
+  height = x.get_shape()[1] * stride
+  width = x.get_shape()[2] * stride
+  output_shape = [d, height, weight, filters_out]
+  strides = [1, stride, stride, stride, 1]
+  shape = [ksize, ksize, ksize, filters_in, filters_out]
+  initializer = tf.truncated_normal_initializer(stddev=CONV_WEIGHT_STDDEV)
+  weights = _get_variable('weights',
+                          shape=shape,
+                          dtype='float',
+                          initializer=initializer,
+                          weight_decay=CONV_WEIGHT_DECAY)
+  bias = tf.get_variable('bias', [filters_out], 'float', tf.constant_initializer(0.05, dtype='float'))
+  x = tf.nn.conv3d_transpose(x, weights, output_shape, strides, padding='SAME')
   return tf.nn.bias_add(x, bias)
 
 # wrapper for batch-norm op
@@ -275,6 +296,51 @@ def inference(left_x, right_x, is_training):
       x = bn(x, c)
       x = tf.nn.relu(x)
 
+      c['stride'] = 1
+      x = conv_3d(x, c)
+      x = bn(x, c)
+      x = tf.nn.relu(x)
+
+      x = conv_3d(x, c)
+      x = bn(x, c)
+      x = tf.nn.relu(x)
+
+
   # 3d deconvolution
   with tf.variable_scope("deconv"):
+    c['stride'] = 2
+    c['conv_filters_out'] = 64
+    x = deconv_3d(x, c)
+    x = bn(x, c)
+    x = tf.nn.relu(x)
+    x = x + x29
 
+    x = deconv_3d(x, c)
+    x = bn(x, c)
+    x = tf.nn.relu(x)
+    x = x + x26
+
+    x = deconv_3d(x, c)
+    x = bn(x, c)
+    x = tf.nn.relu(x)
+    x = x + x23
+
+    c['conv_filters_out'] = 32
+    x = deconv_3d(x, c)
+    x = bn(x, c)
+    x = tf.nn.relu(x)
+    x = x + x20
+
+    c['conv_filters_out'] = 1
+    x = deconv_3d(x, c)
+
+  # soft argmin 暂时先用分类的loss，而不是文章中的soft argmin的做法
+  x = tf.squeeze(x)
+  x = -x
+  # with tf.name_scope('softmax'):
+  #   max_axis = tf.reduce_max(x, 2, keep_dims=True)
+  #   x = tf.exp(x-max_axis)
+  #   normalize = tf.reduce_sum(x, 2, keep_dims=True)
+  #   x = x/normalize
+
+  return x
