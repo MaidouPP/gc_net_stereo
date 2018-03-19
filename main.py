@@ -10,10 +10,6 @@ import readPFM
 from PIL import Image
 import argparse
 
-# FLAGS = tf.app.flags.FLAGS
-# tf.app.flags.DEFINE_string('output_dir', '/home/users/shixin.li/segment/gc-net/log', "save log and checkpoints.")
-# tf.app.flags.DEFINE_float('learning_rate', 0.001, "learning rate.")
-# tf.app.flags.DEFINE_integer('max_steps', 50000, "max steps")
 WIDTH=512
 HEIGHT=256
 
@@ -26,7 +22,7 @@ def parse_args():
   parser.add_argument('--output_dir', default='/home/users/shixin.li/segment/gc-net/log')
   parser.add_argument('--learning_rate', default=0.001, type=float)
   parser.add_argument('--max_steps', default=50000, type=int)
-  parser.add_argument('--pretrain', default='false', 
+  parser.add_argument('--pretrain', default='false',
                       help='true or false')
   args = parser.parse_args()
   return args
@@ -68,7 +64,7 @@ def normalizeRGB(img):
 	  maxval=img[:, :, i].max()
 	  if minval!=maxval:
 		  img[:, :, i]=(img[:, :, i]-minval)/(maxval-minval)
-  return img		
+  return img
 
 def train(dataset, args):
   tf.logging.set_verbosity(tf.logging.ERROR)
@@ -79,7 +75,7 @@ def train(dataset, args):
 
     logits = inference(left_img, right_img, is_training=True)
     logits = tf.transpose(logits, [1, 2, 0])
-    
+
     global_step = tf.get_variable('global_step', [],
                                   initializer=tf.constant_initializer(0),
                                   trainable=False)
@@ -155,19 +151,19 @@ def train(dataset, args):
 #        imgGround = f['groundtruth/' + randomNumber][()]
 #        imgGround = imgGround[randomH:randomH + HEIGHT, randomW:randomW + WIDTH]
 #        imgGround = imgGround.astype(int)
-      
+
       randomNumber = random.randint(0, 800-1)
       randomH = random.randint(0, image_height - HEIGHT - 1)
       randomW = random.randint(0, image_width - WIDTH -1)
       with open("train.lst", "r") as lst:
         img = lst.readlines()[randomNumber]
         img = img.strip()
-      
+
       imgL = np.array(Image.open(dataset+"/left/"+img))
       imgL = normalizeRGB(imgL)
       imgL = imgL[randomH:randomH+HEIGHT, randomW:randomW+WIDTH, :]
       imgL = np.expand_dims(imgL, axis=0)
-      
+
       imgR = np.array(Image.open(dataset+"/right/"+img))
       imgR = normalizeRGB(imgR)
       imgR = imgR[randomH:randomH+HEIGHT, randomW:randomW+WIDTH, :]
@@ -175,7 +171,7 @@ def train(dataset, args):
 
       imgGround = readPFM.load_pfm(dataset+"/left_gt/"+img[:-4]+".pfm")
       imgGround = imgGround[randomH:randomH+HEIGHT, randomW:randomW+WIDTH]
-      
+
       step = sess.run(global_step)
       i = [train_op, loss_, accuracy]
 
@@ -185,7 +181,7 @@ def train(dataset, args):
         i.append(summary_op)
 
       o = sess.run(i, feed_dict={left_img: imgL, right_img: imgR, labels: imgGround})
-      
+
       loss_value = o[1]
       accuracy_train = o[2]
 
@@ -210,7 +206,7 @@ def train(dataset, args):
 
 def test(dataset, args):
     # new_saver = tf.train.import_meta_graph("model.ckpt-141601.meta")
-    
+
     # construct exactly same variables as training phase
     print "================ Building the same network as training phase ==============="
     left_img = tf.placeholder(tf.float32, shape=(1, HEIGHT, WIDTH, None))
@@ -219,7 +215,7 @@ def test(dataset, args):
 
     logits = inference(left_img, right_img, is_training=True)
     logits = tf.transpose(logits, [1, 2, 0])
-    
+
     global_step = tf.get_variable('global_step', [],
                                   initializer=tf.constant_initializer(0),
                                   trainable=False)
@@ -236,7 +232,7 @@ def test(dataset, args):
     accuracy = tf.div(correct_pixels, pixels)
 
     loss_ = loss(result, labels)
-    
+
     sess = tf.Session()
     new_saver = tf.train.Saver()
     print "================= Loading checkpoint =============="
@@ -248,12 +244,12 @@ def test(dataset, args):
       randomW = 0
       img = lst.readlines()[randomNumber]
       img = img.strip()
-      
+
       imgL = np.array(Image.open(dataset+"/left/"+img))
       imgL = normalizeRGB(imgL)
       imgL = imgL[randomH:randomH+HEIGHT, randomW:randomW+WIDTH, :]
       imgL = np.expand_dims(imgL, axis=0)
-     
+
       imgR = np.array(Image.open(dataset+"/right/"+img))
       imgR = normalizeRGB(imgR)
       imgR = imgR[randomH:randomH+HEIGHT, randomW:randomW+WIDTH, :]
@@ -262,8 +258,8 @@ def test(dataset, args):
       imgGround = readPFM.load_pfm(dataset+"/left_gt/"+img[:-4]+".pfm")
       imgGround = imgGround[randomH:randomH+HEIGHT, randomW:randomW+WIDTH]
       print imgGround
-    
-    print "Start testing for one image.................."  
+
+    print "Start testing for one image.................."
     o = sess.run([result, loss_], feed_dict={left_img: imgL, right_img: imgR, labels: imgGround})
     test_img = o[0].squeeze()
     test_img = np.asarray(test_img, np.uint8)
@@ -272,17 +268,13 @@ def test(dataset, args):
     print "loss is: ", o[1]
     print "Saving test.png..................."
     test_img.save("test.png")
- 
+
 
 def main(_):
   global image_height
   global image_width
   image_height = 540
   image_width = 960
-  global HEIGHT
-  global WIDTH
-  HEIGHT = 256
-  WIDTH = 512
   dataset = "/home/users/shixin.li/segment/data_stereo"
   args = parse_args()
   if args.phase == 'train':
